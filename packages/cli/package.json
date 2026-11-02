@@ -1,0 +1,22 @@
+{
+  "name": "ragfolio",
+  "version": "0.1.0",
+  "description": "Set up and seed a self-hosted Ragfolio agentic RAG chatbot for your portfolio site.",
+  "license": "MIT",
+  "type": "module",
+  "bin": { "ragfolio": "./dist/index.js" },
+  "files": ["dist", "schema.sql", "README.md"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && cp ../../apps/server/supabase/schema.sql ./schema.sql",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test --import tsx tests/*.test.ts"
+  },
+  "engines": { "node": ">=20.19" },
+  "dependencies": { "pg": "^8.16.3" },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/pg": "^8.15.5",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.3"
+  }
+}

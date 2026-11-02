@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ragfolio embed test</title>
+    <style>
+      body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 40px 24px; background: #111827; color: #e5e7eb; }
+      main { max-width: 720px; margin: 0 auto; }
+      input, button { font: inherit; padding: 8px 12px; border-radius: 8px; border: 1px solid #374151; background: #1f2937; color: inherit; }
+      button { cursor: pointer; }
+      #inline { height: 560px; margin-top: 32px; border: 1px dashed #374151; border-radius: 12px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Host page</h1>
+      <p>
+        This stands in for an adopter's portfolio. Serve this folder on a port that is listed in the
+        app's <code>TRUSTED_ORIGINS</code> (e.g. <code>npx serve -l 5173 examples</code>) and set the
+        app URL below. The floating launcher comes from <code>embed.js</code>; the composer here
+        exercises <code>window.ragfolio.ask()</code>.
+      </p>
+      <p>
+        <input id="q" size="40" placeholder="Ask through the host page's own composer" />
+        <button id="go">Ask</button>
+        <button id="toggle">Toggle</button>
+      </p>
+      <div id="inline"></div>
+    </main>
+
+    <script>
+      // Adopters do not need any of this block; it only makes the test page configurable.
+      const app = new URLSearchParams(location.search).get('app') || 'http://localhost:3200';
+      for (const [mode, extra] of [['launcher', {}], ['inline', { 'data-mode': 'inline', 'data-target': '#inline' }]]) {
+        const s = document.createElement('script');
+        s.src = app + '/embed.js';
+        s.defer = true;
+        s.setAttribute('data-theme', 'dark');
+        for (const [k, v] of Object.entries(extra)) s.setAttribute(k, v);
+        if (mode === 'inline') s.setAttribute('data-label', 'Inline');
+        document.body.appendChild(s);
+      }
+      document.getElementById('go').onclick = () => window.ragfolio?.ask(document.getElementById('q').value);
+      document.getElementById('toggle').onclick = () => window.ragfolio?.toggle();
+    </script>
+  </body>
+</html>
