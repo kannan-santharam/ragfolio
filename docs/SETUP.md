@@ -116,7 +116,7 @@ Keep `.env.local` out of git. The repo's `.gitignore` already excludes it.
 ## 5. Run locally
 
 ```bash
-git clone https://github.com/YOUR_GITHUB_USER/ragfolio
+git clone https://github.com/kannan-santharam/ragfolio
 cd ragfolio
 pnpm install                       # or: corepack enable && pnpm install
 cp /path/to/.env.local apps/server/.env.local   # from step 4, or run init with --out apps/server

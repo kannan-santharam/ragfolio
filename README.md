@@ -20,7 +20,7 @@ npx ragfolio init
 
 **2. Deploy.** Click the button. When the project exists, open *Settings → Environment Variables*, paste the whole contents of your `.env.local` into the key field (Vercel splits it into variables), save, and redeploy.
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/YOUR_GITHUB_USER/ragfolio&root-directory=apps/server&project-name=ragfolio)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/kannan-santharam/ragfolio&root-directory=apps/server&project-name=ragfolio)
 
 Check it with `npx ragfolio doctor --url https://your-app.vercel.app`. If it reports `Browser check: unavailable`, enable *Settings → Security → Secure Backend Access with OIDC Federation* on the project and redeploy; until then requests on your key are refused.
 
