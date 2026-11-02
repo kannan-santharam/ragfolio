@@ -49,7 +49,10 @@ export async function botCheckState(): Promise<'on' | 'off' | 'unavailable'> {
   try {
     await checkBotId();
     return 'on';
-  } catch {
-    return 'unavailable';
+  } catch (error) {
+    // Only the two "cannot run here" failures mean unavailable. Anything else
+    // (for instance, a probe with no challenge to verify) means it did run.
+    const message = error instanceof Error ? error.message : String(error);
+    return /oidc|deployed on vercel/i.test(message) ? 'unavailable' : 'on';
   }
 }

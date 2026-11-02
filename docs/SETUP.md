@@ -154,7 +154,7 @@ pnpm typecheck
 
 Vercel limits to know: 4.5 MB request body (uploads are capped at 4 MB), 60 s per function on Hobby (ingestion and vision parsing are budgeted inside that).
 
-**Browser check.** Every request that spends your key must come from a browser running the widget. This uses Vercel BotID in Basic mode, free on every plan, no setup beyond this repo. If the check cannot run the request is refused, not let through: `doctor` shows `Browser check: unavailable` and visitors see "could not be verified as coming from a browser". On Vercel the usual cause is OIDC being off: enable **Settings → Security → Secure Backend Access with OIDC Federation** and redeploy. On a host other than Vercel set `BOT_CHECK=off`; the counters below still apply.
+**Browser check.** Every request that spends your key must come from a browser running the widget. This uses Vercel BotID in Basic mode, free on every plan, no setup beyond this repo. If the check cannot run the request is refused, not let through: `doctor` shows `Browser check: unavailable` and visitors see "could not be verified as coming from a browser". On Vercel the usual cause is OIDC being off: enable **Settings → Security → Secure Backend Access with OIDC Federation** and redeploy. On a host other than Vercel set `BOT_CHECK=off`; the counters below still apply, and they need the caller's address from your proxy (`x-real-ip`, or the rightmost `x-forwarded-for` entry), otherwise every request on your key is refused as "temporarily unavailable".
 
 ### 6a. The free trial and your daily ceilings
 
@@ -323,5 +323,5 @@ npx ragfolio doctor --url https://your-app.vercel.app
 
 - **Documents:** edit the files and re-run `npx ragfolio seed ./docs --url …`. Changed files are replaced; unchanged ones are skipped.
 - **Configuration:** change the variable in Vercel and redeploy.
-- **The app:** pull the latest from this repo and push; Vercel redeploys. Re-run `schema.sql` after upgrades that mention schema changes — it is idempotent.
+- **The app:** pull the latest from this repo and push; Vercel redeploys. Re-run `schema.sql` after upgrades that mention schema changes — it is idempotent. **The free trial and the per-address ceilings (§6a) need the `read_rate_limit` and `release_rate_limit` functions**: re-run `schema.sql` once before setting `PUBLIC_ACCESS=trial` on a deployment created before them, or the allowance shows as zero.
 - **Remove everything:** delete the Vercel project and the Supabase project; revoke the API key in AI Studio or the OpenAI dashboard.

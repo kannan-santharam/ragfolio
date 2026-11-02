@@ -22,7 +22,7 @@ npx ragfolio init
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/YOUR_GITHUB_USER/ragfolio&root-directory=apps/server&project-name=ragfolio)
 
-Check it with `npx ragfolio doctor --url https://your-app.vercel.app`.
+Check it with `npx ragfolio doctor --url https://your-app.vercel.app`. If it reports `Browser check: unavailable`, enable *Settings → Security → Secure Backend Access with OIDC Federation* on the project and redeploy; until then requests on your key are refused.
 
 **3. Seed.** Put your CV, bio, project notes (PDF, DOCX, Markdown, text) in a folder and ingest them.
 
