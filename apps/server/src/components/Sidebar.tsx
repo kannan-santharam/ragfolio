@@ -1,9 +1,10 @@
 'use client';
 
-import { ArrowRight, BookOpen, CheckCircle2, Info, TriangleAlert, FileText, KeyRound, Layers, PlusCircle, Trash2, X } from 'lucide-react';
+import { ArrowRight, BookOpen, CheckCircle2, Info, TriangleAlert, FileText, KeyRound, Layers, PlusCircle, Sparkles, Trash2, X } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 import { UploadZone } from './UploadZone';
 import type { UploadState } from './hooks/useDocuments';
+import type { TrialAllowance } from '@/lib/client';
 import type { DocumentRecord, PublicConfig } from '@/lib/types';
 
 const KIND_LABEL: Record<string, string> = {
@@ -30,6 +31,7 @@ export function Sidebar({
   onDismissNotices,
   trusted,
   apiKey,
+  trial,
   keyProviderName,
   onChangeKey,
   onRemoveKey,
@@ -56,6 +58,8 @@ export function Sidebar({
   trusted?: boolean;
   /** The visitor's own key, when the public URL required one. */
   apiKey?: string;
+  /** What the free trial has left today, when that is what is paying. */
+  trial?: TrialAllowance | null;
   /** Vendor the stored key belongs to, for the label. */
   keyProviderName?: string;
   onChangeKey?: () => void;
@@ -226,6 +230,25 @@ export function Sidebar({
           <PlusCircle className="h-3.5 w-3.5" />
           New session
         </button>
+
+        {trial && !apiKey && (
+          <div className="rounded-xl border border-[var(--border-card)] px-2.5 py-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-3.5 w-3.5 shrink-0 text-[var(--color-cyan)]" />
+              <p className="truncate text-[0.7rem] font-semibold text-[var(--text-title)]">Free trial</p>
+              <button
+                type="button"
+                onClick={onChangeKey}
+                className="ml-auto rounded-lg px-1.5 py-1 text-[0.65rem] font-semibold text-[var(--text-muted)] transition-colors hover:bg-[var(--bg-card-hover)] hover:text-[var(--text-title)]"
+              >
+                Use my key
+              </button>
+            </div>
+            <p className="mt-0.5 text-[0.6rem] text-[var(--text-muted)]">
+              {trial.chatsLeft} of {trial.chatsPerDay} questions · {trial.docsLeft} of {trial.docsPerDay} uploads left today
+            </p>
+          </div>
+        )}
 
         {apiKey && (
           /**

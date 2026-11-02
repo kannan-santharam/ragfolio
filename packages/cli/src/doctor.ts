@@ -11,6 +11,10 @@ interface Status {
   commit?: string;
   config?: { assistantName?: string; ownerName?: string };
   optional?: Record<string, boolean>;
+  access?: string;
+  botCheck?: string;
+  onVercel?: boolean;
+  selfTrusted?: boolean;
 }
 
 export async function doctor(args: ParsedArgs): Promise<void> {
@@ -41,6 +45,16 @@ export async function doctor(args: ParsedArgs): Promise<void> {
     ['Owner', status.config?.ownerName || dim('(unset)')],
     ['Trusted origins', status.optional?.TRUSTED_ORIGINS ? yes : yellow('not set — every visitor gets restricted mode')],
     ['Seed token', status.optional?.SEED_TOKEN ? yes : yellow('not set — seeding disabled')],
+    ['Public URL', status.access ?? dim('byok')],
+    [
+      'Browser check',
+      status.botCheck === 'off'
+        ? yellow('off — counters are the only line')
+        : status.botCheck === 'unavailable'
+          ? red('unavailable — visitor requests on your key are being refused. On Vercel enable OIDC federation and redeploy; elsewhere set BOT_CHECK=off')
+          : green('on'),
+    ],
+    ...(status.selfTrusted ? [['Trusted origins', red('include this deployment\'s own host — every public visitor counts as trusted. Remove it')] as [string, string]] : []),
     ['Tracing', status.tracing ? green('on') : off],
     ['Telemetry', status.telemetry ? green('on') : off],
   ];

@@ -45,6 +45,7 @@ Pick one. Gemini is the easy default because it is free and needs no card. You c
 2. Click **Create API key**. If asked, pick an existing Google Cloud project or let it create one. No billing is required.
 3. Copy the key. It looks like `AIza…` (39 characters) or a newer dotted form.
 4. Keep it somewhere safe for step 4. Never commit it.
+5. Recommended: in Google Cloud → **APIs & Services → Credentials**, open the key and restrict it to the *Generative Language API* only. The widget never needs anything else.
 
 Free-tier limits that matter here (measured, not guessed; they change, so verify on your key):
 
@@ -153,6 +154,31 @@ pnpm typecheck
 
 Vercel limits to know: 4.5 MB request body (uploads are capped at 4 MB), 60 s per function on Hobby (ingestion and vision parsing are budgeted inside that).
 
+**Browser check.** Every request that spends your key must come from a browser running the widget. This uses Vercel BotID in Basic mode, free on every plan, no setup beyond this repo. If the check cannot run the request is refused, not let through: `doctor` shows `Browser check: unavailable` and visitors see "could not be verified as coming from a browser". On Vercel the usual cause is OIDC being off: enable **Settings → Security → Secure Backend Access with OIDC Federation** and redeploy. On a host other than Vercel set `BOT_CHECK=off`; the counters below still apply.
+
+### 6a. The free trial and your daily ceilings
+
+Unset, the bare URL asks visitors for their own key. `init` offers the trial; it is never switched on by an upgrade.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `PUBLIC_ACCESS` | `byok` | `byok` (own key only), `trial` or `closed` |
+| `TRIAL_CHATS_PER_DAY` | 10 | Questions per trial visitor per day (an address gets three visitors' worth) |
+| `TRIAL_DOCS_PER_DAY` | 1 | Uploads per trial visitor per day |
+| `TRIAL_MAX_CHARS` | 20000 | Characters of text per trial document |
+| `TRIAL_VISION_PAGES` | 0 | PDF pages the vision model reads per trial upload; images are refused at 0 |
+| `TRIAL_MAX_TURNS` | 3 | Agent turns per trial question |
+| `TRIAL_DAILY_CHATS` / `TRIAL_DAILY_INGESTS` | 100 / 10 | All trial spend together per day. Reached: trial visitors get the key form; your site is unaffected |
+| `OWNER_DAILY_CHATS` / `OWNER_DAILY_INGESTS` | 200 / 20 | All spend by visitors on **your site** per day. Reached: "try again tomorrow" |
+| `OWNER_CHATS_PER_ADDRESS` / `OWNER_INGESTS_PER_ADDRESS` | 60 / 5 | The same, per address per day |
+| `VISITOR_VISION_PAGES` | 4 | Vision pages per upload for a visitor on your own site |
+
+The two `*_DAILY_*` pairs are the ceiling on what one day can cost you, whoever the visitors are. Size them against your provider's daily quota and leave headroom for your own seeding. Counters live in Postgres; if the database cannot be reached they count as full, so an outage never turns into an unmetered key. A unit reserved for an upload that is refused before any model call (empty, malformed, over the size cap) is handed back.
+
+Per-visitor trial counts use an HttpOnly cookie (`ragfolio_v`) and the hashed address (IPv6 by /64). Your own site's visitors are counted per address and against their own ceiling.
+
+Do not list the deployment's own URL in `TRUSTED_ORIGINS`: that would make every public visitor a trusted one. `doctor` warns if you do.
+
 ---
 
 ## 7. Seed your documents
@@ -239,7 +265,11 @@ Defined in `apps/server/.env.example`. Required ones in bold.
 | `SUGGESTED_QUESTIONS` | Up to four, comma-separated |
 | `PERSONA` | Extra paragraph appended to the system prompt |
 | **`TRUSTED_ORIGINS`** | Your site origins, comma-separated, apex and www. Build-time for CSP |
-| `ALLOW_VISITOR_KEYS` | `false` closes the public URL entirely (default `true`) |
+| `PUBLIC_ACCESS` | `byok` (default), `trial` or `closed`; see 6a. `ALLOW_VISITOR_KEYS=false` still means `closed` |
+| `TRIAL_CHATS_PER_DAY`, `TRIAL_DOCS_PER_DAY`, `TRIAL_MAX_CHARS`, `TRIAL_VISION_PAGES`, `TRIAL_MAX_TURNS`, `TRIAL_DAILY_CHATS`, `TRIAL_DAILY_INGESTS` | Trial allowance per visitor and per day; see 6a |
+| `OWNER_DAILY_CHATS`, `OWNER_DAILY_INGESTS`, `OWNER_CHATS_PER_ADDRESS`, `OWNER_INGESTS_PER_ADDRESS` | Ceilings on your own site's visitors spending your key; see 6a |
+| `VISITOR_VISION_PAGES` | Vision pages per upload for visitors on your site (default 4) |
+| `BOT_CHECK` | `off` disables the browser check on non-Vercel hosts |
 | `REDACT_CONTACT_DETAILS` | `false` leaves phone/email visible to untrusted visitors (default `true`) |
 | `PDF_PARSE_MODE` | `rich` (default, every page read by the model), `auto` (only pages with images/little text), `text` (text layer only) |
 | `VISION_MAX_PAGES` | Vision calls per upload (default 20) |
@@ -256,7 +286,7 @@ Defined in `apps/server/.env.example`. Required ones in bold.
 
 **On your site (trusted origin):** the widget opens with your name, your seeded documents, and starter questions. Visitors ask; the agent searches when needed and cites passages. They can also upload their own file (e.g. a job description) and ask how it compares. Your key pays; they never see a key prompt.
 
-**At the bare Vercel URL (untrusted):** a "Get started" stepper: (1) add their own Gemini or OpenAI key, with instructions on how to get one, (2) upload a document, (3) ask. Your documents are not visible, phone numbers and emails are stripped from any passage, and their key stays in their browser (sent per request in a header, never stored or logged server-side).
+**At the bare Vercel URL (untrusted):** a "Get started" stepper. With `PUBLIC_ACCESS=trial`: (1) upload a document, (2) ask, with the day's allowance shown and a "use your own key" link for more. By default: (1) add their own Gemini or OpenAI key, with instructions on how to get one, (2) upload, (3) ask. Either way your documents are not visible, phone numbers and emails are stripped from any passage, and a visitor's own key stays in their browser (sent per request in a header, never stored or logged server-side). When a trial is used up, the key form appears with the reason.
 
 Rate limits: 25 messages per 10 minutes and 10 uploads per hour per hashed IP, by default.
 
@@ -276,6 +306,9 @@ Rate limits: 25 messages per 10 minutes and 10 uploads per hour per hashed IP, b
 | PDF indexed but a chart question gets "documents do not cover it" | Check the upload note: pages beyond `VISION_MAX_PAGES` fall back to the text layer. Raise the limit or split the file |
 | Scanned PDF rejected | Needs `PDF_PARSE_MODE=rich` or `auto` (vision). `text` mode cannot read scans |
 | Uploads fail at 4 MB | Vercel body limit. Compress or split the file |
+| Visitors get "could not be verified as coming from a browser" | BotID could not run. On Vercel, enable OIDC federation (section 6) and redeploy. Elsewhere set `BOT_CHECK=off`. `doctor` shows the state |
+| Visitors on your site see "reached its usage allowance for today" | `OWNER_DAILY_*` or `OWNER_*_PER_ADDRESS` hit. Raise them |
+| "temporarily unavailable" on your site or the trial | The counters in Supabase could not be reached (they fail closed). Check the project is up and the schema is applied |
 | Answers reveal phone/email on the public URL | `REDACT_CONTACT_DETAILS` must be `true` (default). Also fence them with `seed:exclude` so they are never indexed |
 
 Diagnose any deployment with one command:

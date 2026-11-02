@@ -1,11 +1,22 @@
-import { NextResponse } from 'next/server';
-import { isConfigured, missingConfig, provider, publicConfig } from '@/lib/config';
+import { NextResponse, type NextRequest } from 'next/server';
+import { botCheckState } from '@/lib/botCheck';
+import { env, isConfigured, missingConfig, provider, publicConfig } from '@/lib/config';
 import { chatModels } from '@/lib/models';
 import { PACKAGE_VERSION, telemetryEnabled } from '@/lib/telemetry';
 import { isTracingEnabled } from '@/lib/tracing';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+function selfTrusted(req: NextRequest): boolean {
+  const host = (req.headers.get('x-forwarded-host') ?? req.headers.get('host') ?? '').trim().toLowerCase();
+  if (!host) return false;
+  try {
+    return env.trustedOrigins.some((origin) => new URL(origin).host === host);
+  } catch {
+    return false;
+  }
+}
 
 /** Present or absent only. Never the value — this endpoint is public. */
 function present(name: string): boolean {
@@ -17,7 +28,7 @@ function present(name: string): boolean {
  * `npx ragfolio doctor` diagnose a deploy with one request, and tells the
  * browser what this install calls itself before it renders a word.
  */
-export function GET() {
+export async function GET(req: NextRequest) {
   let providerId: string;
   let configured = false;
   let missing: string[] = [];
@@ -39,6 +50,12 @@ export function GET() {
     missing,
     tracing: isTracingEnabled(),
     telemetry: telemetryEnabled(),
+    access: env.publicAccess,
+    botCheck: await botCheckState(),
+    onVercel: Boolean(process.env.VERCEL),
+    // A deployment that trusts its own origin treats every public visitor as
+    // trusted. Flagged here so `doctor` can say so.
+    selfTrusted: selfTrusted(req),
     optional: {
       TRUSTED_ORIGINS: present('TRUSTED_ORIGINS'),
       SEED_TOKEN: present('SEED_TOKEN'),

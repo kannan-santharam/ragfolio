@@ -9,6 +9,7 @@
 import type { PublicConfig } from './types';
 
 export type Provider = 'gemini' | 'openai';
+export type PublicAccess = 'trial' | 'byok' | 'closed';
 
 function required(name: string): string {
   const value = process.env[name];
@@ -78,13 +79,30 @@ export const env = {
     return process.env.RATE_LIMIT_SALT ?? 'ragfolio';
   },
   /**
-   * Whether visitors arriving directly (not through a trusted origin) may use
-   * the app with their own key. Off means the public URL is a closed door:
-   * only trusted origins get answers. On means the public
-   * URL becomes a generic "upload and ask" demo on the visitor's own key.
+   * What a visitor who did not arrive through a trusted origin may do at the
+   * public URL.
+   *
+   *   trial  — a small daily allowance on the owner's key, then bring-your-own-key
+   *   byok   — bring-your-own-key only
+   *   closed — nothing; only trusted origins get answers
+   *
+   * Unset means `byok`: a trial spends the owner's key, and that is something
+   * an operator turns on, never something an upgrade turns on for them.
+   * `npx ragfolio init` offers it. The older ALLOW_VISITOR_KEYS=false is
+   * honoured as `closed`.
    */
+  get publicAccess(): PublicAccess {
+    if ((process.env.ALLOW_VISITOR_KEYS ?? '').trim().toLowerCase() === 'false') return 'closed';
+    const raw = (process.env.PUBLIC_ACCESS ?? 'byok').trim().toLowerCase();
+    return raw === 'trial' || raw === 'closed' ? raw : 'byok';
+  },
+  /** Kept for callers that only need the open/closed distinction. */
   get allowVisitorKeys(): boolean {
-    return (process.env.ALLOW_VISITOR_KEYS ?? 'true').trim().toLowerCase() !== 'false';
+    return env.publicAccess !== 'closed';
+  },
+  /** `off` skips the browser check: for hosts other than Vercel. */
+  get botCheck(): 'on' | 'off' {
+    return (process.env.BOT_CHECK ?? 'on').trim().toLowerCase() === 'off' ? 'off' : 'on';
   },
   get redactContacts(): boolean {
     return (process.env.REDACT_CONTACT_DETAILS ?? 'true').trim().toLowerCase() !== 'false';

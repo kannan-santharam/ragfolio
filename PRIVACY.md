@@ -12,9 +12,15 @@ What a Ragfolio deployment does with data, written for the person deploying it a
 
 A visitor at your public URL who is not on a trusted origin supplies their own provider key. It travels in a request header, is used for that request, and is **never stored, logged or traced**. A short SHA-256 fingerprint is kept in process memory and in the `model_health` table only to keep one visitor's rate-limit state separate from another's. Keys pasted into documents or the chat box are removed before indexing.
 
+## The free trial and the visitor cookie
+
+With `PUBLIC_ACCESS=trial`, a visitor at the public URL may use the owner's key within a small daily allowance. To count that allowance the server sets one cookie, `ragfolio_v`, holding a random id. It is HttpOnly, scoped to `/api`, `SameSite=Lax`, and carries nothing but that id; it is not a tracking identifier and is not sent anywhere else. The counters it keys live in your Supabase project's `rate_limits` table and expire within a day. Clearing the cookie starts a new id, which is why the allowance is also counted against the hashed address and against a deployment-wide daily total.
+
+Requests that spend the owner's key must also pass Vercel BotID, a browser-integrity check that runs on the page's own JavaScript. It does not identify the visitor.
+
 ## Contact details
 
-Phone numbers and email addresses in passages are replaced with a placeholder before the model or the citation panel sees them, unless the visitor arrived through one of your `TRUSTED_ORIGINS`. This is a disclosure preference: the origin is reported by the browser and can be forged. The browser-enforced control is the `frame-ancestors` header built from the same list. Do not gate anything that matters on origin trust; use real authentication.
+Phone numbers and email addresses in passages are replaced with a placeholder before the model or the citation panel sees them, unless the visitor arrived through one of your `TRUSTED_ORIGINS`. This is a disclosure preference: the origin is reported by the browser and can be forged. The browser-enforced control is the `frame-ancestors` header built from the same list. Do not gate anything that matters on origin trust; use real authentication. What a forged origin cannot do is spend the owner's key without limit: trusted-origin spend must pass the same browser check, and is counted per address and against its own daily ceiling.
 
 ## Rate limiting
 

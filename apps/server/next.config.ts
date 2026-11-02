@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { withBotId } from 'botid/next/config';
 
 /**
  * Origins allowed to frame this app: the adopter's own site(s), from the same
@@ -49,4 +50,8 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+/**
+ * BotID (lib/botCheck.ts): adds the rewrites that proxy the browser challenge
+ * through this origin, which is also why `connect-src 'self'` still holds.
+ */
+export default withBotId(nextConfig);

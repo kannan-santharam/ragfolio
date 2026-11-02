@@ -10,14 +10,15 @@ import { canWriteSharedNamespace } from './session';
  *
  * Through a trusted origin the assistant runs on the owner's key — a visitor to
  * the owner's site should not need a credential. At the public URL the visitor
- * brings their own (BYOK), because one free-tier key cannot absorb an unbounded
- * audience. ALLOW_VISITOR_KEYS=false closes the public URL instead.
+ * either brings their own key (BYOK) or, with PUBLIC_ACCESS=trial, gets a small
+ * metered allowance on the owner's key first (lib/trial.ts). `closed` means the
+ * public URL answers nobody.
  *
  * The visitor's key never leaves the request it arrived on: not written to the
  * database, not logged, not traced. Only a non-reversible fingerprint is kept,
  * to partition per-key caches so two visitors' keys never share state.
  */
-export type KeySource = 'owner' | 'visitor';
+export type KeySource = 'owner' | 'visitor' | 'trial';
 
 export interface ResolvedKey extends Credential {
   source: KeySource;
@@ -53,7 +54,8 @@ export function resolveApiKey(req: NextRequest): ResolvedKey {
     return { key, source: 'owner', fingerprint: fingerprint(key), provider: ownerProvider() };
   }
 
-  if (!env.allowVisitorKeys) {
+  const access = env.publicAccess;
+  if (access === 'closed') {
     throw new OriginNotAllowedError('This assistant only answers from the site it belongs to.');
   }
 
@@ -62,6 +64,12 @@ export function resolveApiKey(req: NextRequest): ResolvedKey {
   const supplied = (req.headers.get(BYOK_HEADER) ?? '').trim();
   const hint = `Get a key at ${provider.keyHelpUrl}, then add it here to start asking questions. It stays in your browser.`;
   if (!supplied) {
+    // A visitor's own key, when offered, always wins over the trial: their
+    // quota, their limits. Without one, the trial pays — metered by the route.
+    if (access === 'trial') {
+      const key = env.ownerKey;
+      return { key, source: 'trial', fingerprint: fingerprint(key), provider: ownerProvider() };
+    }
     throw new ApiKeyRequiredError(`This page runs on your own ${provider.id === 'openai' ? 'OpenAI' : 'Gemini'} key. ${hint}`);
   }
   // Header-safety first: undici throws on an interior newline with a message

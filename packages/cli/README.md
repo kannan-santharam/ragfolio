@@ -19,7 +19,7 @@ No install needed. Node 20 or newer.
 
 ### `init`
 
-Interactive wizard. Every answer can also be passed as a flag (`--provider`, `--key`, `--supabase-url`, `--supabase-key`, `--database-url`, `--owner`, `--assistant`, `--questions`, `--origins`, `--telemetry on|off`); `--yes` skips prompts entirely. Refuses to overwrite an existing `.env.local` unless `--force` is given. Writes to `--out <dir>` (default: current directory).
+Interactive wizard. Every answer can also be passed as a flag (`--provider`, `--key`, `--supabase-url`, `--supabase-key`, `--database-url`, `--owner`, `--assistant`, `--questions`, `--origins`, `--public-access trial|byok|closed`, `--telemetry on|off`); `--yes` skips prompts entirely. Refuses to overwrite an existing `.env.local` unless `--force` is given. Writes to `--out <dir>` (default: current directory).
 
 ### `seed <dir> --url <appUrl> [--token <seedToken>] [--env <file>]`
 

@@ -3,7 +3,7 @@
 import { useState, type ReactNode } from 'react';
 import { Check, ClipboardPaste, FileUp, KeyRound, MessageCircleQuestion } from 'lucide-react';
 import { KeyHowTo, ProviderToggle } from './KeyHowTo';
-import type { VisitorProvider } from '@/lib/client';
+import type { TrialAllowance, VisitorProvider } from '@/lib/client';
 import type { DocumentRecord, PublicConfig } from '@/lib/types';
 
 const GENERIC_STARTERS = [
@@ -56,6 +56,8 @@ export interface GetStartedProps {
   trusted: boolean;
   /** Step 1 is shown only when the visitor must bring a key. */
   keyRequired: boolean;
+  /** Set when a free trial on the site's key is paying; the key step is then optional. */
+  trial?: TrialAllowance | null;
   hasKey: boolean;
   keyProvider: VisitorProvider;
   onKeyProviderChange: (provider: VisitorProvider) => void;
@@ -76,7 +78,7 @@ interface Step {
 }
 
 export function GetStarted(props: GetStartedProps) {
-  const { config, documents, trusted, keyRequired, hasKey, keyProvider, onKeyProviderChange } = props;
+  const { config, documents, trusted, keyRequired, trial, hasKey, keyProvider, onKeyProviderChange } = props;
   const owner = config.ownerName;
   const owned = documents.filter((doc) => !doc.is_public);
   const preloaded = trusted && documents.length > 0 && owned.length === 0;
@@ -125,17 +127,31 @@ export function GetStarted(props: GetStartedProps) {
         : 'Documents are loaded',
     explain: preloaded
       ? 'Optional: add a job description or your own notes and the agent will search those too.'
-      : 'PDF, DOCX, Markdown, text or an image — up to 4MB. Tables, charts and figures are read by the model.',
+      : trial
+        ? `Free to try, no key needed: ${plural(trial.docsPerDay, 'document')} of up to ${Math.round(trial.maxChars / 1000)}k characters and ${plural(trial.chatsPerDay, 'question')} a day. PDF, DOCX, Markdown or text.`
+        : 'PDF, DOCX, Markdown, text or an image — up to 4MB. Tables, charts and figures are read by the model.',
     body: (
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <button type="button" onClick={props.onOpenFilePicker} className={CTA}>
-          <FileUp className="h-3.5 w-3.5" />
-          {preloaded ? 'Add your own (e.g. a job description)' : 'Choose a file'}
-        </button>
-        <button type="button" onClick={props.onOpenPaste} className={CTA_SECONDARY}>
-          <ClipboardPaste className="h-3.5 w-3.5" />
-          Paste text instead
-        </button>
+      <div className="space-y-2.5">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button type="button" onClick={props.onOpenFilePicker} className={CTA} disabled={Boolean(trial && trial.docsLeft === 0)}>
+            <FileUp className="h-3.5 w-3.5" />
+            {preloaded ? 'Add your own (e.g. a job description)' : 'Choose a file'}
+          </button>
+          <button type="button" onClick={props.onOpenPaste} className={CTA_SECONDARY} disabled={Boolean(trial && trial.docsLeft === 0)}>
+            <ClipboardPaste className="h-3.5 w-3.5" />
+            Paste text instead
+          </button>
+        </div>
+        {trial && (
+          <p className="text-[0.7rem] text-[var(--text-muted)]">
+            {trial.docsLeft === 0 ? "Today's free upload is used." : `${plural(trial.docsLeft, 'upload')} and ${plural(trial.chatsLeft, 'question')} left today.`}{' '}
+            Want images, bigger files and no daily cap?{' '}
+            <button type="button" onClick={props.onOpenKeyPanel} className="font-semibold text-[var(--color-cyan)] hover:underline">
+              Use your own free {config.provider === 'openai' ? 'OpenAI' : 'Gemini'} key
+            </button>
+            .
+          </p>
+        )}
       </div>
     ),
   });
@@ -233,6 +249,10 @@ export function GetStarted(props: GetStartedProps) {
       })}
     </ol>
   );
+}
+
+function plural(n: number, noun: string): string {
+  return `${n} ${noun}${n === 1 ? '' : 's'}`;
 }
 
 const CTA =

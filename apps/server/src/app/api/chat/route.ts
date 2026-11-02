@@ -1,15 +1,17 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { runAgent } from '@/lib/agent';
 import { ApiKeyRequiredError, OriginNotAllowedError, resolveApiKey } from '@/lib/apiKey';
+import { browserAllowed, verifyBrowser } from '@/lib/botCheck';
 import { env } from '@/lib/config';
 import { QuotaExhaustedError, resolveModels } from '@/lib/models';
 import { isTrustedOrigin } from '@/lib/privacy';
 import type { Message } from '@/lib/providers';
 import { checkRateLimit, LIMITS, rateLimitIdentity } from '@/lib/rateLimit';
 import { normaliseSettings } from '@/lib/settings';
-import { requireSessionId, SessionError } from '@/lib/session';
+import { requireReadableSessionId, SessionError } from '@/lib/session';
 import { recordUsage } from '@/lib/telemetry';
 import { startTrace } from '@/lib/tracing';
+import { isSecureRequest, isVisitorSpend, refusalMessage, reserveOwnerSpend, trialCaps, visitorCookieHeader, visitorIdFor } from '@/lib/trial';
 import type { ChatStreamEvent } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -17,6 +19,10 @@ export const maxDuration = 60;
 
 /** Turns kept in context. Older ones are dropped rather than summarised. */
 const MAX_HISTORY_TURNS = 12;
+
+/** One message. History is already bounded by turns; this bounds a single turn. */
+const MAX_MESSAGE_CHARS = 4_000;
+const TRIAL_HISTORY_TURNS = 6;
 
 interface IncomingMessage {
   role: 'user' | 'assistant';
@@ -26,7 +32,7 @@ interface IncomingMessage {
 export async function POST(req: NextRequest) {
   let sessionId: string;
   try {
-    sessionId = requireSessionId(req);
+    sessionId = requireReadableSessionId(req);
   } catch (error) {
     return NextResponse.json({ error: error instanceof SessionError ? error.message : 'Bad request.' }, { status: 400 });
   }
@@ -36,8 +42,12 @@ export async function POST(req: NextRequest) {
 
   // Re-clamped server-side: the browser is not the authority, and an unvetted
   // model id would be interpolated straight into a provider URL.
-  const settings = normaliseSettings(body?.settings);
+  let settings = normaliseSettings(body?.settings);
   const trusted = isTrustedOrigin(req);
+
+  if (messages.some((m) => m.content.length > MAX_MESSAGE_CHARS)) {
+    return NextResponse.json({ error: `Messages are limited to ${MAX_MESSAGE_CHARS.toLocaleString()} characters. Put long text in a document instead.` }, { status: 413 });
+  }
 
   let credential;
   try {
@@ -47,8 +57,6 @@ export async function POST(req: NextRequest) {
     if (error instanceof OriginNotAllowedError) return NextResponse.json({ error: error.message }, { status: 403 });
     throw error;
   }
-
-  const models = resolveModels(settings.model, credential.provider);
 
   if (!messages.length || messages[messages.length - 1]?.role !== 'user') {
     return NextResponse.json({ error: 'The last message must come from the user.' }, { status: 400 });
@@ -67,8 +75,34 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Spend on the owner's key by a visitor: a browser must be on the other end,
+  // and the daily allowances must have room. See lib/trial.ts.
+  const tier = isVisitorSpend(credential.source, false);
+  const visitor = visitorIdFor(req);
+  const responseHeaders: Record<string, string> = {};
+  if (tier) {
+    if (!browserAllowed(await verifyBrowser())) {
+      return NextResponse.json({ error: 'This request could not be verified as coming from a browser.', needsKey: tier === 'trial' }, { status: tier === 'trial' ? 401 : 403 });
+    }
+    if (tier === 'trial' && visitor.fresh) responseHeaders['Set-Cookie'] = visitorCookieHeader(visitor.id, isSecureRequest(req));
+    const verdict = await reserveOwnerSpend(req, sessionId, 'chat', tier, visitor.id);
+    if (!verdict.allowed) {
+      const message = refusalMessage(verdict, 'chat', tier, credential.provider === 'openai' ? 'OpenAI' : 'Gemini');
+      // A trial that is used up turns into the bring-your-own-key prompt.
+      return NextResponse.json({ error: message, needsKey: tier === 'trial' }, { status: tier === 'trial' ? 401 : 429, headers: responseHeaders });
+    }
+    if (tier === 'trial') {
+      // The trial does not get to pick the dearest model or the longest loop.
+      settings = { ...settings, model: 'auto', maxTurns: Math.min(settings.maxTurns, trialCaps().maxTurns) };
+    }
+  }
+
+  const models = resolveModels(settings.model, credential.provider);
+
   // Trim to a user boundary so the tail never starts on an orphaned answer.
-  const recent = messages.slice(-MAX_HISTORY_TURNS).filter((m) => m.content.trim());
+  // A trial turn also carries less history: the unit is a request, and the
+  // history is re-sent on every turn of it.
+  const recent = messages.slice(-(tier === 'trial' ? TRIAL_HISTORY_TURNS : MAX_HISTORY_TURNS)).filter((m) => m.content.trim());
   while (recent.length && recent[0].role !== 'user') recent.shift();
   const history: Message[] = recent.map((m) =>
     m.role === 'user' ? { role: 'user', content: m.content } : { role: 'assistant', content: m.content },
@@ -147,6 +181,7 @@ export async function POST(req: NextRequest) {
 
   return new Response(stream, {
     headers: {
+      ...responseHeaders,
       'Content-Type': 'text/event-stream; charset=utf-8',
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',

@@ -8,7 +8,7 @@ import { CliError, bold, cyan, dim, log, parseArgs, red } from './util.js';
 const USAGE = `${bold('ragfolio')} — set up and seed a self-hosted agentic RAG chatbot for your site.
 
 ${bold('Usage')}
-  npx ragfolio init     [--out <dir>] [--force] [--yes] [--provider gemini|openai] [--key ...]
+  npx ragfolio init     [--out <dir>] [--force] [--yes] [--provider gemini|openai] [--public-access trial|byok|closed] [--key ...]
                         [--supabase-url ...] [--supabase-key ...] [--database-url ...]
                         [--owner ...] [--assistant ...] [--questions "a,b"] [--origins "https://a.com,https://b.dev"]
                         [--telemetry on|off]

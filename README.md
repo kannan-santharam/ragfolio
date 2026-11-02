@@ -49,7 +49,9 @@ Optional JS API: `window.ragfolio.open()`, `.close()`, `.toggle()`, `.ask('What 
 
 ## How it behaves
 
-**Two faces, one deployment.** Through your own site (`TRUSTED_ORIGINS`) the assistant is yours: seeded documents in scope, contact details readable, your key paying. At its bare Vercel URL it is a blank "upload a document and ask" tool: nothing preloaded, phone numbers and emails stripped from passages, and visitors supply their own key. Set `ALLOW_VISITOR_KEYS=false` to close the public URL entirely.
+**Two faces, one deployment.** Through your own site (`TRUSTED_ORIGINS`) the assistant is yours: seeded documents in scope, contact details readable, your key paying. At its bare Vercel URL it is a blank "upload a document and ask" tool: nothing preloaded, phone numbers and emails stripped from passages.
+
+**A free trial, then their own key.** With `PUBLIC_ACCESS=trial` (`init` offers it), a visitor at the public URL gets a small daily allowance on your key (one document of up to 20k characters and ten questions, by default) before being asked for a key of their own, so nobody meets a key form first. Every unit of visitor spend on your key, from the trial or from your own site, is metered per address and against a daily ceiling, must come from a browser running the widget (Vercel BotID, free on all plans), and is counted in Postgres with a fail-closed posture. The trial has its own ceiling, so abuse of the public URL cannot switch the widget off on your site. Unset, the public URL is bring-your-own-key; `closed` turns it off.
 
 **Agentic, visibly.** The model holds two tools, `search_document` and `list_sections`, and decides per turn whether to search, with what query, and how many times. The UI shows that trail live. Tools are withheld on the final turn so the agent must answer.
 
@@ -73,6 +75,9 @@ See [`apps/server/.env.example`](apps/server/.env.example). Highlights:
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Server-side only; the browser never holds a Supabase key |
 | `OWNER_NAME`, `ASSISTANT_NAME`, `WELCOME_MESSAGE`, `SUGGESTED_QUESTIONS`, `PERSONA` | The personalisation layer |
 | `TRUSTED_ORIGINS` | Your site's origins (apex and www). Also builds the CSP `frame-ancestors` header at build time, so changing it needs a redeploy |
+| `PUBLIC_ACCESS` | `byok` (default), `trial` or `closed`: what the bare URL offers visitors |
+| `OWNER_DAILY_CHATS`, `OWNER_DAILY_INGESTS`, `OWNER_*_PER_ADDRESS` | Ceilings on your own site's visitors spending your key (defaults 200 / 20 a day, 60 / 5 per address) |
+| `TRIAL_*` | Trial allowance per visitor and per day; see docs/SETUP.md §6a |
 | `SEED_TOKEN` | Required for `ragfolio seed`; unset disables seeding |
 | `RAGFOLIO_TELEMETRY_DISABLED=1` | Opt out of anonymous usage counts (see below) |
 | `LANGFUSE_*` | Optional tracing; a no-op when unset |

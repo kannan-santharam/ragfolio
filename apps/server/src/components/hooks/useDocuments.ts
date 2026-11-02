@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ApiKeyNeededError, deleteDocument, fetchDocuments, ingestText, uploadFile } from '@/lib/client';
+import { ApiKeyNeededError, deleteDocument, fetchDocuments, ingestText, uploadFile, type PublicAccess, type TrialAllowance } from '@/lib/client';
 import type { DocumentRecord, PublicConfig } from '@/lib/types';
 
 export interface UploadState {
@@ -26,6 +26,10 @@ export function useDocuments(
   const [trusted, setTrusted] = useState(false);
   /** False when the public URL is closed to visitors without a trusted origin. */
   const [visitorKeysAllowed, setVisitorKeysAllowed] = useState(true);
+  /** The public URL's terms: free trial first, own key only, or closed. */
+  const [access, setAccess] = useState<PublicAccess>('byok');
+  /** What the free trial has left today, when there is one. */
+  const [trial, setTrial] = useState<TrialAllowance | null>(null);
   const [config, setConfig] = useState<PublicConfig>(initialConfig);
 
   const refresh = useCallback(async () => {
@@ -35,6 +39,8 @@ export function useDocuments(
       setDocuments(list.documents);
       setTrusted(list.trusted);
       setVisitorKeysAllowed(list.visitorKeysAllowed);
+      setAccess(list.access);
+      setTrial(list.trial ?? null);
       if (list.config) setConfig(list.config);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not load documents.');
@@ -63,6 +69,8 @@ export function useDocuments(
           input instanceof File ? await uploadFile(sessionId, input) : await ingestText(sessionId, input.text, input.title);
         setDocuments((previous) => [result.document, ...previous]);
         setNotices(result.notes);
+        // The allowance moved; the next list call reports the exact figure.
+        setTrial((previous) => (previous ? { ...previous, docsLeft: Math.max(0, previous.docsLeft - 1) } : previous));
         return { document: result.document, notes: result.notes };
       } catch (cause) {
         if (cause instanceof ApiKeyNeededError) onKeyRequired?.(cause.message);
@@ -95,6 +103,10 @@ export function useDocuments(
     documents,
     trusted,
     visitorKeysAllowed,
+    access,
+    trial,
+    /** Called after each answer so the allowance shown stays honest. */
+    noteChat: () => setTrial((previous) => (previous ? { ...previous, chatsLeft: Math.max(0, previous.chatsLeft - 1) } : previous)),
     config,
     uploading,
     error,

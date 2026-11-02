@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { BotIdClient } from 'botid/client';
 import { ThemeProvider, themeBootstrapScript } from '@/context/ThemeContext';
 import './globals.css';
 
@@ -28,6 +29,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         {/* Reads ?theme= before paint so the iframe never flashes light inside a dark page. */}
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
+        {/* Attaches the browser challenge to the two routes that can spend the owner's key. */}
+        <BotIdClient
+          protect={[
+            { path: '/api/chat', method: 'POST' },
+            { path: '/api/ingest', method: 'POST' },
+          ]}
+        />
       </head>
       <body className="h-full antialiased">
         <ThemeProvider>{children}</ThemeProvider>

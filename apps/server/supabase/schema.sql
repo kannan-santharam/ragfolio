@@ -148,6 +148,41 @@ begin
 end;
 $$;
 
+-- Read-only view of a counter, so the UI can show what is left of an allowance
+-- without spending one unit of it. Same window arithmetic as bump_rate_limit.
+create or replace function read_rate_limit (
+  p_session_id  uuid,
+  p_bucket      text,
+  p_window_secs int
+)
+returns int
+language sql stable
+as $$
+  select coalesce(
+    (select count from rate_limits
+      where session_id = p_session_id
+        and bucket = p_bucket
+        and window_start = to_timestamp(floor(extract(epoch from now()) / p_window_secs) * p_window_secs)),
+    0);
+$$;
+
+-- Hands a unit back when a request was refused before it cost anything, so a
+-- malformed upload does not count against an allowance. Never below zero.
+create or replace function release_rate_limit (
+  p_session_id  uuid,
+  p_bucket      text,
+  p_window_secs int
+)
+returns void
+language sql
+as $$
+  update rate_limits
+     set count = greatest(count - 1, 0)
+   where session_id = p_session_id
+     and bucket = p_bucket
+     and window_start = to_timestamp(floor(extract(epoch from now()) / p_window_secs) * p_window_secs);
+$$;
+
 -- -----------------------------------------------------------------------------
 -- model_health: which chat models are currently rate-limited or unresponsive,
 -- and until when. In Postgres rather than process memory because serverless

@@ -121,10 +121,24 @@ export async function checkApiKey(sessionId: string, key: string, provider: Visi
   return payload;
 }
 
+export type PublicAccess = 'trial' | 'byok' | 'closed';
+
+/** What a trial visitor has left today. Present only at the public URL in trial mode. */
+export interface TrialAllowance {
+  chatsLeft: number;
+  docsLeft: number;
+  chatsPerDay: number;
+  docsPerDay: number;
+  maxChars: number;
+}
+
 export interface DocumentList {
   documents: DocumentRecord[];
   /** True when this origin is trusted, so the preloaded documents are in scope. */
   trusted: boolean;
+  /** The public URL's terms for visitors who are not on a trusted origin. */
+  access: PublicAccess;
+  trial?: TrialAllowance;
   /** False when the public URL is closed to visitors without a trusted origin. */
   visitorKeysAllowed: boolean;
   config: PublicConfig;
@@ -133,7 +147,8 @@ export interface DocumentList {
 export async function fetchDocuments(sessionId: string): Promise<DocumentList> {
   const response = await fetch('/api/documents', { headers: sessionHeaders(sessionId) });
   const data = await unwrap<DocumentList>(response);
-  return { ...data, trusted: Boolean(data.trusted), visitorKeysAllowed: data.visitorKeysAllowed !== false };
+  const access: PublicAccess = data.access === 'trial' || data.access === 'closed' ? data.access : data.visitorKeysAllowed === false ? 'closed' : 'byok';
+  return { ...data, access, trusted: Boolean(data.trusted), visitorKeysAllowed: access !== 'closed' };
 }
 
 export async function deleteDocument(sessionId: string, id?: string): Promise<void> {

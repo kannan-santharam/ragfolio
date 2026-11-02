@@ -122,6 +122,8 @@ export function ChatApp({
     clearStoredApiKey();
     setApiKey('');
     setKeyRejected(message);
+    // In trial mode the panel is not shown by default; a used-up trial opens it.
+    setEditingKey(true);
   }, []);
 
   const docs = useDocuments(sessionId, initialConfig, onKeyRequired);
@@ -193,9 +195,9 @@ export function ChatApp({
       const content = (text ?? input).trim();
       if (!content) return;
       setInput('');
-      void chat.send(content);
+      void chat.send(content).then(() => docs.noteChat());
     },
-    [chat, input],
+    [chat, docs, input],
   );
 
   // submit changes with every keystroke (it closes over `input`); read it
@@ -261,7 +263,10 @@ export function ChatApp({
   const configWarning = Boolean(setup && !setup.configured);
 
   /** The public URL is closed to visitors without a trusted origin. */
-  const closed = docs.loaded && !docs.trusted && !docs.visitorKeysAllowed;
+  const closed = docs.loaded && !docs.trusted && docs.access === 'closed';
+
+  /** A free trial on the owner's key is what is paying right now. */
+  const trialActive = docs.loaded && !docs.trusted && docs.access === 'trial' && !apiKey;
 
   /**
    * Whose quota this visitor is spending. Trust is the same signal that gates
@@ -270,7 +275,7 @@ export function ChatApp({
    * answer is known, and on the server being configured, since an unconfigured
    * server cannot verify a key.
    */
-  const needsOwnKey = docs.loaded && !docs.trusted && docs.visitorKeysAllowed && !apiKey;
+  const needsOwnKey = docs.loaded && !docs.trusted && docs.access === 'byok' && !apiKey;
   const showKeyPanel = !closed && !configWarning && docs.loaded && !docs.trusted && (needsOwnKey || editingKey);
 
   /**
@@ -299,6 +304,7 @@ export function ChatApp({
     onDismissNotices: docs.dismissNotices,
     trusted: docs.trusted,
     apiKey: ownKeyInUse ? apiKey : undefined,
+    trial: trialActive ? docs.trial : null,
     keyProviderName: PROVIDER_COPY[keyProvider]?.name,
     onChangeKey: () => {
       setEditingKey(true);
@@ -338,7 +344,8 @@ export function ChatApp({
     config,
     documents: docs.documents,
     trusted: docs.trusted,
-    keyRequired: docs.loaded && !docs.trusted && docs.visitorKeysAllowed,
+    keyRequired: docs.loaded && !docs.trusted && docs.access === 'byok',
+    trial: trialActive ? docs.trial : null,
     hasKey: Boolean(apiKey),
     keyProvider,
     onKeyProviderChange: (provider: VisitorProvider) => setStepperProvider(provider),
@@ -474,7 +481,7 @@ export function ChatApp({
                 if (switched) void startNewSession();
               }}
               onCancel={
-                editingKey && apiKey
+                editingKey && (apiKey || (trialActive && !keyRejected))
                   ? () => {
                       setEditingKey(false);
                       setKeyFromStepper(false);

@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { env } from './config';
+import { isTrustedOrigin } from './privacy';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -56,5 +57,19 @@ export class SessionError extends Error {}
 export function requireSessionId(req: NextRequest): string {
   const id = readSessionId(req);
   if (!id) throw new SessionError('Missing or malformed x-session-id header.');
+  return id;
+}
+
+/**
+ * The session a read or a chat may run as. The shared namespace is reachable
+ * by every trusted-origin visitor through `readableSessions`, so nobody has a
+ * reason to name it directly; a request that does, from anywhere else, is
+ * refused rather than served the owner's corpus on the owner's key.
+ */
+export function requireReadableSessionId(req: NextRequest): string {
+  const id = requireSessionId(req);
+  if (id === SEED_SESSION_ID && !isTrustedOrigin(req) && !canWriteSharedNamespace(req)) {
+    throw new SessionError('That session is not available here.');
+  }
   return id;
 }

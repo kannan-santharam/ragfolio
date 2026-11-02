@@ -25,7 +25,9 @@ export async function POST(req: NextRequest) {
   let providerId: 'gemini' | 'openai';
   try {
     const resolved = resolveApiKey(req);
-    if (resolved.source === 'owner') return NextResponse.json({ valid: true, source: 'owner' });
+    // Only a visitor-supplied key is ever probed. The owner's key is not a
+    // thing this route checks, whichever path handed it over.
+    if (resolved.source !== 'visitor') return NextResponse.json({ valid: true, source: 'owner' });
     key = resolved.key;
     providerId = resolved.provider;
   } catch (error) {

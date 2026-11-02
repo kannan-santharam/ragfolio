@@ -153,11 +153,27 @@ export async function init(args: ParsedArgs): Promise<void> {
       'http://localhost:3000',
     ]);
 
-    // (g) secrets
+    // (g) the public URL
+    log();
+    log(dim('  At its own URL the widget can give visitors a small free trial on your key'));
+    log(dim('  (default: 1 document and 10 questions a day each, 100 questions a day in total)'));
+    log(dim('  before asking for their own key. Metered, and only from a real browser.'));
+    const accessFlag = flagString(args.flags, 'public-access');
+    const publicAccess =
+      accessFlag !== undefined
+        ? accessFlag.trim().toLowerCase()
+        : prompter
+          ? (await prompter.confirm('  Offer visitors a free trial on your key?', true))
+            ? 'trial'
+            : 'byok'
+          : 'trial';
+    if (!['trial', 'byok', 'closed'].includes(publicAccess)) throw new CliError('--public-access must be trial, byok or closed.');
+
+    // (h) secrets
     const seedToken = randomBytes(32).toString('base64url');
     const rateLimitSalt = randomBytes(32).toString('base64url');
 
-    // (h) telemetry
+    // (i) telemetry
     log();
     log(dim('  Ragfolio counts usage anonymously: package version, a hashed host name and an event name.'));
     log(dim('  Never questions, answers, documents, keys or visitor addresses. Opt out any time with RAGFOLIO_TELEMETRY_DISABLED=1.'));
@@ -175,6 +191,7 @@ export async function init(args: ParsedArgs): Promise<void> {
       ['ASSISTANT_NAME', assistantName],
       ['SUGGESTED_QUESTIONS', questions.join(',')],
       ['TRUSTED_ORIGINS', origins.join(',')],
+      ['PUBLIC_ACCESS', publicAccess],
       ['SEED_TOKEN', seedToken],
       ['RATE_LIMIT_SALT', rateLimitSalt],
       ['RAGFOLIO_TELEMETRY_DISABLED', telemetry ? '' : '1'],
@@ -196,6 +213,12 @@ export async function init(args: ParsedArgs): Promise<void> {
       log(bold('Database schema'));
       log(`  Paste ${cyan(await schemaPath())}`);
       log('  into Supabase → SQL Editor → New query, and run it once.');
+      log();
+    }
+    if (publicAccess === 'trial') {
+      log(bold('Free trial'));
+      log('  Trial ceiling: TRIAL_DAILY_CHATS=100, TRIAL_DAILY_INGESTS=10. Your own site: OWNER_DAILY_CHATS=200,');
+      log('  OWNER_DAILY_INGESTS=20. Adjust in .env.local; see docs/SETUP.md §6a.');
       log();
     }
     log(bold('Environment variables to add in Vercel (Project → Settings → Environment Variables):'));
